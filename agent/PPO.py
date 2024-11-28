@@ -1,5 +1,8 @@
 import torch 
 import torch.nn as nn 
+from torch.utils.tensorboard import SummaryWriter
+
+import os
 
 from .ResNet import Resnet10
 
@@ -24,10 +27,6 @@ class Actor(nn.Module):
         self.std_head  = nn.Linear(in_features=self.hidden_dim, out_features=self.n_joints)
         self.exp = torch.exp
 
-
-    def _weight_init(self, ):
-
-        pass 
 
     def forward(self, state: torch.Tensor):
         features = torch.flatten(self.encoder(state), start_dim=1)
@@ -61,35 +60,40 @@ class Critic(nn.Module):
 
         return value
     
-    def _count_params(self): 
+    def count_params(self): 
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 class PPO():
-    def __init__(self, actor: nn.Module, critic: nn.Module, lr: float=3e-4) -> None:
+    def __init__(self, actor: nn.Module, critic: nn.Module, lr: float=3e-4, values_loss_coeff: float=1.0, entropy_loss_coeff: float=0.01, log_dir: str="./agent_log") -> None:
         
         # initializing ppo parameters 
         self.actor = actor
         self.critic = critic 
-        self.discount_factor 
-        self.Lambda
         self.clip
+        
 
         # loss coefficient 
-        self.values_loss_coeff
-        self.entropy_loss_coeff
+        self.values_loss_coeff = values_loss_coeff
+        self.entropy_loss_coeff = entropy_loss_coeff
         
         # initializing optimizer 
         self.lr = lr
         self.optimizer = torch.optim.Adam(params= list(self.actor.parameters()) + list(self.critic.parameters()), lr=self.lr)
 
-    def _update(self, states: torch.Tensor, actions: torch.Tensor, log_probs_old, advantages, returns): 
+        # logging 
+        os.makedirs(log_dir, exist_ok=True)
+        self.writer = SummaryWriter(log_dir)  # TensorBoard writer
+
+        self.step = 0  # global step counter for logging
+
+    def update(self, states: torch.Tensor, actions: torch.Tensor, log_probs_old, advantages, returns): 
         
         for i in range (self.epoch): 
             means, stds = self.actor(states)
 
             dists = torch.distributions.Normal(loc=means, scale=stds)
-            log_probs_new = dists.sample(actions).sum()
-            entropy = dists.entropy()
+            log_probs_new = dists.sample(actions).sum(dim=1).mean(dim=0)
+            entropy = dists.entropy().mean()
             
             values = self.critic(states)
             
@@ -97,21 +101,29 @@ class PPO():
             surr1 = ratio*advantages
             surr2 = torch.clamp(ratio, 1-self.clip, 1+self.clip)
 
-            # Defining losses 
+            # defining losses 
             policy_loss  = -torch.min(surr1, surr2).mean()
             value_loss   = nn.MSELoss()(values, returns)
-            entropy_loss = -entropy.mean()
+            entropy_loss = -entropy
 
             loss = policy_loss + self.values_loss_coeff*value_loss + self.entropy_loss_coeff*entropy_loss
 
-
+            # backprop 
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
 
+            # logging
+            self.writer.add_scalar('Loss/Policy', policy_loss.item(), self.step)
+            self.writer.add_scalar('Loss/Value', value_loss.item(), self.step)
+            self.writer.add_scalar('Loss/Entropy', entropy_loss.item(), self.step)
+            self.writer.add_scalar('Values/Mean', values.mean().item(), self.step)
+            self.writer.add_scalar('Values/Std', values.std().item(), self.step)
+            
+            self.step += 1
 
-    def _sample_action(self, state: torch.Tensor):
-        
+    def sample_action(self, state: torch.Tensor):
+        """Sample action given state"""
         means, stds = self.actor(state)
 
         dists = torch.distributions.Normal(loc=means, scale=stds)
@@ -120,6 +132,20 @@ class PPO():
 
         return action 
 
+    def save(self, path):
+        """Save the model parameters."""
+        torch.save({
+            'actor_state_dict': self.actor.state_dict(),
+            'critic_state_dict': self.critic.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict()
+        }, path)
+
+    def load(self, path):
+        """Load the model parameters."""
+        checkpoint = torch.load(path)
+        self.actor.load_state_dict(checkpoint['actor_state_dict'])
+        self.critic.load_state_dict(checkpoint['critic_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
 
 if __name__=="__main__":
