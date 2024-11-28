@@ -1,7 +1,7 @@
 import torch 
 import torch.nn as nn 
 
-from ResNet import Resnet10
+from .ResNet import Resnet10
 
 
 class MLP(nn.Module):
