@@ -25,14 +25,14 @@ class Actor(nn.Module):
 
         self.mean_head = nn.Linear(in_features=self.hidden_dim, out_features=self.n_joints)
         self.std_head  = nn.Linear(in_features=self.hidden_dim, out_features=self.n_joints)
-        self.exp = torch.exp
+        self.softplus = nn.Softplus
 
 
     def forward(self, state: torch.Tensor):
         features = torch.flatten(self.encoder(state), start_dim=1)
 
         action_means = self.mean_head(features)
-        action_stds  = self.exp(self.std_head(features))
+        action_stds  = self.softplus(self.std_head(features))
  
         return action_means, action_stds
 
