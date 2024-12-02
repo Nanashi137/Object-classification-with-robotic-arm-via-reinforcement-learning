@@ -25,7 +25,7 @@ class Actor(nn.Module):
 
         self.mean_head = nn.Linear(in_features=self.hidden_dim, out_features=self.n_joints)
         self.std_head  = nn.Linear(in_features=self.hidden_dim, out_features=self.n_joints)
-        self.softplus = nn.Softplus
+        self.softplus = nn.Softplus()
 
 
     def forward(self, state: torch.Tensor):
@@ -64,12 +64,12 @@ class Critic(nn.Module):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 class PPO():
-    def __init__(self, actor: nn.Module, critic: nn.Module, lr: float=3e-4, values_loss_coeff: float=1.0, entropy_loss_coeff: float=0.01, log_dir: str="./agent_log") -> None:
+    def __init__(self, actor: nn.Module, critic: nn.Module, clip: float=0.2, lr: float=3e-4, values_loss_coeff: float=1.0, entropy_loss_coeff: float=0.01, log_dir: str="./agent_log") -> None:
         
         # initializing ppo parameters 
         self.actor = actor
         self.critic = critic 
-        self.clip
+        self.clip = clip
         
 
         # loss coefficient 
