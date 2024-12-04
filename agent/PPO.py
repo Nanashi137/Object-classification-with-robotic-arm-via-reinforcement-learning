@@ -99,7 +99,7 @@ class PPO():
             
             ratio = torch.exp(log_probs_new - log_probs_old)
             surr1 = ratio*advantages
-            surr2 = torch.clamp(ratio, 1-self.clip, 1+self.clip)
+            surr2 = torch.clamp(ratio, 1-self.clip, 1+self.clip)*advantages
 
             # defining losses 
             policy_loss  = -torch.min(surr1, surr2).mean()
