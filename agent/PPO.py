@@ -2,10 +2,6 @@ import torch
 import torch.nn as nn 
 from torch.utils.tensorboard import SummaryWriter
 
-import os
-
-from .ResNet import Resnet10
-
 
 class MLP(nn.Module):
     def __init__(self, *args, **kwargs):
@@ -64,7 +60,7 @@ class Critic(nn.Module):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 class PPO():
-    def __init__(self, actor: nn.Module, critic: nn.Module, clip: float=0.2, lr: float=3e-4, values_loss_coeff: float=1.0, entropy_loss_coeff: float=0.01, log_dir: str="./agent_log") -> None:
+    def __init__(self, actor: nn.Module, critic: nn.Module, clip: float=0.2, lr: float=3e-4, values_loss_coeff: float=1.0, entropy_loss_coeff: float=0.01, *, logging: torch.utils.tensorboard.writer.SummaryWriter) -> None:
         
         # initializing ppo parameters 
         self.actor = actor
@@ -81,8 +77,8 @@ class PPO():
         self.optimizer = torch.optim.Adam(params= list(self.actor.parameters()) + list(self.critic.parameters()), lr=self.lr)
 
         # logging 
-        os.makedirs(log_dir, exist_ok=True)
-        self.writer = SummaryWriter(log_dir)  # TensorBoard writer
+
+        self.writer = logging  # TensorBoard writer
 
         self.step = 0  # global step counter for logging
 
@@ -147,22 +143,12 @@ class PPO():
         self.critic.load_state_dict(checkpoint['critic_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
-
+# Debug
 if __name__=="__main__":
 
-    actor  = Actor(arch=Resnet10(height=224, width=224, mode="gray"), n_joints=6)
-    critic = Critic(arch=Resnet10(height=224, width=224, mode="gray"))
 
-    # print(actor._count_params())
-    # print(critic._count_params())
+    pass
 
-    actor.eval(), critic.eval()
-    dummy_state = torch.randn(5, 1, 224, 224)
 
-    action_means, action_stds = actor(dummy_state)
-    value = critic(dummy_state)
 
-    print(action_means)
-    print(action_stds)
-    print(value)
 
